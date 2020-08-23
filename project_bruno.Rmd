@@ -1,0 +1,153 @@
+---
+title: "Course Project - Practical Machine Learning"
+author: "Bruno Olivares"
+date: "22/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Brief summary
+
+This work is the project of Practical Machine Learning course. It consists of building a model that is capable of predicting the type of movement executed by six volunteers. The data consists of records recorded on accelerometers placed on different parts of the body, such as the arms, belt, forearm and dumbell. 
+
+Training data [in this link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+Testing dara [in this link](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+More information [here](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har)
+
+# Loading and exploring data set
+
+```{r}
+set.seed(987)
+training <- read.csv("gaData.csv")
+test_quiz <- read.csv("pml-testing.csv")
+```
+
+Omiting kurtosis and skewness because they have a lot of missing data.
+timestamp variables also were removing.
+
+```{r}
+index <- grep("kurtosis|skewness|timestamp", names(training))
+training <- training[,-index]
+```
+
+Here searching the variables with missing data, for deleteting them
+
+```{r}
+no_na_values <- sapply(training,function(x) sum(is.na(x)))
+aux <- no_na_values[no_na_values == 0]
+training <- training[,names(aux)]
+training <- training[,-c(1)]
+```
+
+Deleting factors in data
+
+In the dataset was observed that exists factors with a lot of missing values, then they were delete
+
+```{r}
+index_factor <- sapply(training,function(x) class(x)=="factor")
+classe <- training$classe
+training <- training[,names(training[,!index_factor])]
+training$classe <- classe
+```
+
+
+# Creating training and testing data
+
+```{r}
+suppressMessages(library(caret))
+inTrain <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+train_Data <- training[inTrain, ]
+test_Data <- training[-inTrain, ]
+```
+
+# Building models
+
+I chose the random forest method because I previously knew it was the most widely used method for predicting and interpreting movements in the video game industry. 
+In the firts model, I decided to use the default parameters, which rule out cross validation in folds, and use the bootstrapping method with 25 repetitions.
+
+Here is a summary of the model in r. As well as confusing chart
+
+```{r}
+#model_rf <- train(classe~., method = "rf", data = train_Data)
+#save(model_rf,file = "mod_rf.rda")
+load(file = "mod_rf.rda") # The model was previously trained previously
+
+plot(model_rf)
+model_rf
+
+preds <- predict(model_rf, newdata = test_Data)
+conf_rf <- confusionMatrix(preds, test_Data$classe)
+conf_rf
+```
+
+The accurcy of this model is 99.83%. Possibly exist overfiting.
+
+For comparing,another model was built, using k-folds methond in the train control
+
+
+```{r}
+#control_rf2 <- trainControl(method="repeatedcv", number=5, repeats = 1,
+#                           verboseIter=FALSE)
+#model_rf_2 <- train(classe~., method = "rf", data = train_Data, 
+#                    trControl = control_rf2)
+#save(model_rf_2, file = "mod_rf_2.rda")
+load("mod_rf_2.rda") # The model was previously trained previously
+model_rf_2
+plot(model_rf_2)
+
+preds_rf_2 <- predict(model_rf_2, newdata = test_Data)
+conf_rf2 <-confusionMatrix(preds_rf_2, test_Data$classe)
+conf_rf2
+```
+
+The accuracy is 99.81% again. To compare another method it was prove  Stochastic Gradient Boosting method (gbm), included intro caret package
+
+```{r}
+#control_gbm <- trainControl(method = "repeatedcv", number = 5, repeats = #1)
+#model_gbm  <- train(classe ~ ., data=train_Data, method = "gbm", 
+#                 trControl = control_gbm, verbose = FALSE)
+#save(model_gbm, file = "mod_gbm.rda")
+load("mod_gbm.rda") # The model was previously trained previously
+
+model_gbm
+plot(model_gbm)
+preds_gbm <- predict(model_gbm, newdata = test_Data)
+
+conf_gbm <-confusionMatrix(preds_gbm, test_Data$classe)
+conf_gbm
+```
+
+The accuracy obtain is less than in random forest methods, narrowly. However, time trainig is significant less.
+
+# Classification using test_quiz data
+
+1. Random forest with default parameters
+
+```{r}
+test_quiz_rf <- predict(model_rf, newdata = test_quiz)
+test_quiz_rf
+
+```
+
+2. Random forest using 5 folds
+
+```{r}
+test_quiz_rf_2 <- predict(model_rf_2, newdata = test_quiz)
+test_quiz_rf_2
+```
+
+3. Stochastic Gradient Boosting using 5 folds
+
+```{r}
+test_quiz_gbm <- predict(model_gbm, newdata = test_quiz)
+test_quiz_gbm
+```
+
+# Conclusions
+
+In this work three different methods were used to build a model that is able to predict the type of movement performed by volunteers in five different categories. The methods were random forests with boostrap, random forests with 5 folds, and Stochastic gradient boosting with 5 folds. All three methods achieved high levels of accuracy.  The method with the highest accuracy was the randomized forest using bootstrap for training set validation. However, Stochastic gradient method method required less time for training. With all three methods the same result was obtained by using the validation data from the quizz
+
